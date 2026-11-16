@@ -1,52 +1,89 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+	"math/rand"
+)
 
 type Neuron struct {
-    weights []float64
-    bias    float64
-    lr      float64
+	weights []float64
+	bias    float64
+	lr      float64
 }
 
-func NewNeuron(numInputs int, lr float64) *Neuron {
-    weights := make([]float64, numInputs)
-    for i := range weights {
-        weights[i] = 0.1
-    }
-    return &Neuron{weights: weights, bias: 0.0, lr: lr}
+type Layer struct {
+	neurons []Neuron
 }
 
-func (n *Neuron) Predict(inputs []float64) float64 {
-    sum := 0.0
-    for i := range inputs {
-        sum += n.weights[i] * inputs[i]
-    }
-
-    return sum + n.bias
+func NewNeuron(lr float64) *Neuron {
+	return &Neuron{lr: lr, bias: 0.2}
 }
 
-func (n *Neuron) Train(inputs []float64, target float64) {
-    pred := n.Predict(inputs)
-    err := target - pred
+func NewLayer(size int, lr float64) *Layer {
+	l := make([]Neuron, size)
 
-    for i := range inputs {
-        n.weights[i] += n.lr * err * inputs[i]
-    }
-    n.bias += n.lr * err
+	for i := range l {
+		l[i] = *NewNeuron(lr)
+	}
+
+	return &Layer{neurons: l}
+}
+
+func (n *Neuron) Predict(input []float64) float64 {
+	if n.weights == nil {
+		n.weights = make([]float64, len(input))
+		for i := range len(input) {
+			n.weights[i] = rand.Float64()
+		}
+	}
+
+	out := n.bias
+	for i := range input {
+		out += input[i] * n.weights[i]
+	}
+
+	return out
+}
+
+func (n *Neuron) Adjust(err float64, input []float64) {
+	for w := range n.weights {
+		n.weights[w] += err * input[w] * n.lr
+	}
+
+	n.bias += err * n.lr
 }
 
 func main() {
-    x1 := []float64{1, 2, 3}
-    target := []float64{10, 15, 20}
+	input := []float64{23, 51, 36, 61}
+	output := float64(31)
 
-    n := NewNeuron(1, 0.01)
+	out := NewNeuron(0.1)
+	hidden := NewLayer(5, 0.1)
 
-    for epoch := 0; epoch < 5000; epoch++ {
-        for i := range x1 {
-            inputs := []float64{x1[i]}
-            n.Train(inputs, target[i])
-        }
-    }
+	for range 60 {
+		forward := []float64{}
+		for n := range hidden.neurons {
+			prediction := hidden.neurons[n].Predict(input)
+			forward = append(forward, math.Max(0, prediction))
+		}
 
-    fmt.Println(n.Predict([]float64{50}))
+		guess := out.Predict(forward)
+		fmt.Println(guess)
+
+		for n := range hidden.neurons {
+			if forward[n] == 0 {
+				continue
+			}
+			err := (output - guess) * out.weights[n]
+
+			hidden.neurons[n].Adjust(err, input)
+		}
+
+		err := output - guess
+
+		out.Adjust(err, forward)
+	}
 }
+
+// todo:Network struct
