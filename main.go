@@ -16,6 +16,22 @@ type Layer struct {
 	neurons []Neuron
 }
 
+type Network struct {
+	layers []Layer
+	out    *Neuron
+}
+
+func NewNetwork(layers int, size int, lr float64) *Network {
+	out := *NewNeuron(lr)
+	lrs := make([]Layer, layers)
+
+	for l := range lrs {
+		lrs[l] = *NewLayer(size, lr)
+	}
+
+	return &Network{layers: lrs, out: &out}
+}
+
 func NewNeuron(lr float64) *Neuron {
 	return &Neuron{lr: lr, bias: 0.2}
 }
@@ -28,6 +44,38 @@ func NewLayer(size int, lr float64) *Layer {
 	}
 
 	return &Layer{neurons: l}
+}
+
+func (net *Network) Train(input []float64, target float64) {
+	input = scale(input)
+
+	forward := []float64{}
+	for n := range net.layers[0].neurons {
+		forward = append(forward, math.Max(0, net.layers[0].neurons[n].Predict(input)))
+	}
+
+	guess := net.out.Predict(forward)
+	for n := range net.layers[0].neurons {
+		if forward[n] <= 0 {
+			continue
+		}
+		err := (target - guess) * net.out.weights[n]
+		net.layers[0].neurons[n].Adjust(err, input)
+	}
+
+	err := target - guess
+	net.out.Adjust(err, forward)
+}
+
+func (net *Network) Predict(input []float64) float64 {
+	input = scale(input)
+
+	forward := []float64{}
+	for n := range net.layers[0].neurons {
+		forward = append(forward, math.Max(0, net.layers[0].neurons[n].Predict(input)))
+	}
+	guess := net.out.Predict(forward)
+	return guess
 }
 
 func (n *Neuron) Predict(input []float64) float64 {
@@ -48,42 +96,34 @@ func (n *Neuron) Predict(input []float64) float64 {
 
 func (n *Neuron) Adjust(err float64, input []float64) {
 	for w := range n.weights {
-		n.weights[w] += err * input[w] * n.lr
+		n.weights[w] += n.lr * err * input[w]
 	}
+	n.bias += n.lr * err
+}
 
-	n.bias += err * n.lr
+func scale(in []float64) []float64 {
+	out := []float64{}
+	for i := range in {
+		out = append(out, in[i]/100)
+	}
+	return out
 }
 
 func main() {
 	input := []float64{23, 51, 36, 61}
+	input2 := []float64{13, 11, 32, 22}
 	output := float64(31)
+	output2 := float64(82)
 
-	out := NewNeuron(0.1)
-	hidden := NewLayer(5, 0.1)
+	net := NewNetwork(1, 10, 0.001)
 
-	for range 60 {
-		forward := []float64{}
-		for n := range hidden.neurons {
-			prediction := hidden.neurons[n].Predict(input)
-			forward = append(forward, math.Max(0, prediction))
-		}
-
-		guess := out.Predict(forward)
-		fmt.Println(guess)
-
-		for n := range hidden.neurons {
-			if forward[n] == 0 {
-				continue
-			}
-			err := (output - guess) * out.weights[n]
-
-			hidden.neurons[n].Adjust(err, input)
-		}
-
-		err := output - guess
-
-		out.Adjust(err, forward)
+	for range 500 {
+		net.Train(input, output)
+		net.Train(input2, output2)
 	}
+
+	fmt.Println(net.Predict(input))
+
 }
 
-// todo:Network struct
+// todo: multi layer
